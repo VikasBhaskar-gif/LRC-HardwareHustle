@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LRC Liquid Handling Controller — Industrial SCADA Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Fixed Single-Screen Dashboard Container (Zero Scrolling) -->
+  <div id="dashboard-container">
+    
+    <!-- 1. Compact Top Header Bar -->
+    <header id="top-header">
+      <div class="header-left">
+        <div class="brand-group">
+          <span class="brand-icon">&#x2699;</span>
+          <span class="brand-title">LRC HARDWARE CONTROLLER</span>
+          <span class="brand-sub">SCADA HMI</span>
+        </div>
+        <div class="header-pills">
+          <div id="bridge-pill" class="pill pill-offline" title="Bridge WebSocket Status">
+            <span class="pill-dot"></span>
+            <span id="bridge-pill-text">BRIDGE: OFFLINE</span>
+          </div>
+          <div id="serial-pill" class="pill pill-offline" title="ESP32 USB Serial Status">
+            <span class="pill-dot"></span>
+            <span id="serial-pill-text">ESP32: DISCONNECTED</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- Prominent but Compact Emergency Stop Button -->
+        <button id="btn-top-estop" class="btn btn-estop" title="Emergency Stop (Spacebar / s)">
+          &#x26A0; EMERGENCY STOP
+        </button>
+      </div>
+    </header>
+
+    <!-- 2. Three-Column Main Dashboard Grid -->
+    <main id="dashboard-grid">
+
+      <!-- ================= LEFT COLUMN: NARROW TELEMETRY & CONNECTION ================= -->
+      <section id="left-column" class="dash-column">
+        
+        <!-- A. Compact ESP32 Connection Card -->
+        <div class="card connection-card">
+          <div class="card-header">
+            <span class="card-title">&#x1F50C; CONNECTION</span>
+            <span id="activity-led" class="activity-led" title="Serial Rx Activity">&#x25CF;</span>
+          </div>
+          <div class="card-body">
+            <div class="conn-row">
+              <select id="com-port-select" class="control-select">
+                <option value="">Scanning ports...</option>
+              </select>
+              <button id="btn-refresh-ports" class="btn-icon" title="Refresh Ports">&#x21BB;</button>
+            </div>
+            <div class="conn-row mock-row">
+              <label class="mock-toggle-label">
+                <input type="checkbox" id="mock-mode-checkbox"> Mock Mode
+              </label>
+              <span class="baud-tag">115200</span>
+            </div>
+            <div class="conn-actions">
+              <button id="btn-connect" class="btn btn-primary btn-sm">CONNECT</button>
+              <button id="btn-disconnect" class="btn btn-secondary btn-sm" disabled>DISCONNECT</button>
+            </div>
+            <div class="conn-status-msg" id="conn-state-detail">Bridge ready at 127.0.0.1:8080</div>
+          </div>
+        </div>
+
+        <!-- B. Latest 10 Flow Records Table -->
+        <div class="card flow-table-card">
+          <div class="card-header">
+            <div class="table-header-group">
+              <span class="card-title">&#x1F4CA; FLOW LOG (10 LATEST)</span>
+              <span id="log-status-badge" class="badge-tag badge-idle">LOG IDLE</span>
+            </div>
+          </div>
+          <div class="card-body no-pad table-wrapper">
+            <table id="flow-records-table">
+              <thead>
+                <tr>
+                  <th>TIME</th>
+                  <th>P2%</th>
+                  <th>Hz</th>
+                  <th>L/min</th>
+                </tr>
+              </thead>
+              <tbody id="flow-table-body">
+                <!-- Exactly 10 fixed rows visible without scrolling -->
+                <tr class="empty-row"><td colspan="4">Waiting for CSV stream (Send 'L' to log)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- C. Compact Data Actions & Status Legend -->
+        <div class="card data-actions-card">
+          <div class="data-buttons-row">
+            <button id="btn-export-csv" class="btn btn-outline btn-tiny" title="Export session readings to CSV">&#x1F4BE; CSV</button>
+            <button id="btn-clear-table" class="btn btn-outline btn-tiny" title="Clear table history">&#x1F5D1; CLEAR</button>
+          </div>
+          <div class="legend-strip">
+            <span class="legend-item"><span class="dot dot-green"></span>Active</span>
+            <span class="legend-item"><span class="dot dot-grey"></span>Off</span>
+            <span class="legend-item"><span class="dot dot-amber"></span>Unverified</span>
+            <span class="legend-item"><span class="dot dot-red"></span>E-Stop</span>
+          </div>
+        </div>
+
+      </section>
+
+
+      <!-- ================= CENTER COLUMN: DOMINANT INTERACTIVE SCHEMATIC ================= -->
+      <section id="center-column" class="dash-column">
+
+        <!-- A. Compact Status & Action Toolbar immediately above schematic -->
+        <div class="card center-toolbar-card">
+          <div class="status-indicator-group">
+            <div id="main-status-pill" class="status-pill status-idle">
+              <span class="status-dot"></span>
+              <span id="banner-text">SAFE IDLE · MOTORS OFF</span>
+            </div>
+          </div>
+
+          <!-- Quick Commissioning Controls (Sim Presets, Status) -->
+          <div class="quick-actions-group">
+            <div class="sim-dropdown-group">
+              <button id="btn-sim-norm" class="btn btn-action btn-subtle" title="Case 1 Normal ('n')">Sim [n]</button>
+              <button id="btn-sim-high" class="btn btn-action btn-subtle" title="Simulate Sump High ('x')">High [x]</button>
+              <button id="btn-sim-ret" class="btn btn-action btn-subtle" title="Return to Normal ('r')">Return [r]</button>
+            </div>
+            <button id="btn-query-all" class="btn btn-action btn-subtle" title="Query All Subsystems ('p')">&#x21BB; Status [p]</button>
+          </div>
+        </div>
+
+        <!-- B. Large Hydraulic Schematic (Main Centerpiece) -->
+        <div class="card schematic-card">
+          <div class="card-header schematic-header">
+            <div class="schematic-title-group">
+              <span class="card-title">&#x2697; HYDRAULIC SCHEMATIC (P&ID)</span>
+              <span class="schematic-note">Click components to control</span>
+            </div>
+            <div class="schematic-badges">
+              <span id="schematic-mode-pill" class="badge-tag badge-info">CASE 1 RECIRCULATION</span>
+            </div>
+          </div>
+          
+          <div class="card-body schematic-canvas-wrapper" id="schematic-wrapper">
+            <!-- Scalable High-Contrast SVG Schematic -->
+            <svg id="hydraulic-svg" viewBox="65 45 825 440" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <!-- Tank Fluid Gradients -->
+                <linearGradient id="processWaterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35"/>
+                  <stop offset="100%" stop-color="#0284c7" stop-opacity="0.6"/>
+                </linearGradient>
+
+                <linearGradient id="sumpWaterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.4"/>
+                  <stop offset="100%" stop-color="#0369a1" stop-opacity="0.65"/>
+                </linearGradient>
+
+                <linearGradient id="flushWaterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#7dd3fc" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.55"/>
+                </linearGradient>
+
+                <!-- Pipe Line Drop Shadow -->
+                <filter id="pipeShadow" x="-5%" y="-5%" width="110%" height="110%">
+                  <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#94a3b8" flood-opacity="0.25"/>
+                </filter>
+              </defs>
+
+              <!-- ================= 1. PIPELINE BACKBONES ================= -->
+              <g id="pipes-background" class="pipe-lines-bg" filter="url(#pipeShadow)">
+                <!-- Line 1: Process Tank Outlet -> Solenoid Valve -> Branch Junction -> Pump 1 -> Sump Tank -->
+                <path id="pipe-p1-bg" d="M 150 230 L 150 280 L 304 280 L 304 330 L 410 330 L 410 375" />
+                
+                <!-- Line 2: Sump Tank Outlet -> Pump 2 -> FT-01 -> Return into Process Tank -->
+                <path id="pipe-p2-bg" d="M 505 400 L 610 400 L 610 140 L 250 140" />
+                
+                <!-- Line 3: Flush Tank (outlet) -> Manual Ball Valve -> Pump 3 -> Branch Junction (before Pump 1) -->
+                <path id="pipe-p3-bg" d="M 800 230 L 800 310 L 650 310 L 650 245 L 245 245 L 245 280" />
+              </g>
+
+              <!-- ================= 2. ANIMATED FLUID FLOW OVERLAYS ================= -->
+              <g id="pipes-active-flow" class="pipe-flow-active">
+                <!-- Pump 1 Stream (Process / Combined Fluid to Sump Tank) -->
+                <path id="flow-p1" class="flow-line flow-p1" d="M 150 230 L 150 280 L 304 280 L 304 330 L 410 330 L 410 375" />
+                
+                <!-- Pump 2 Stream (Sump through FT-01 to Process Tank) -->
+                <path id="flow-p2" class="flow-line flow-p2" d="M 505 400 L 610 400 L 610 140 L 250 140" />
+                
+                <!-- Pump 3 Stream (Flush Tank through Ball Valve and Pump 3 to Branch Junction before Pump 1) -->
+                <path id="flow-p3" class="flow-line flow-p3" d="M 800 230 L 800 310 L 650 310 L 650 245 L 245 245 L 245 280" />
+              </g>
+
+              <!-- Flow Direction Arrows -->
+              <g id="flow-arrows" class="flow-arrows-group">
+                <!-- Line 1 Downward Arrow: Process Tank Outlet to Solenoid -->
+                <polygon points="146,248 154,248 150,260" class="pipe-arrow" />
+                <!-- Line 1 Horizontal Arrow: Solenoid towards Branch Junction -->
+                <polygon points="214,276 222,280 214,284" class="pipe-arrow" />
+                <!-- Line 1 Combined Stream Arrow: Branch Junction into Pump 1 -->
+                <polygon points="255,276 263,280 255,284" class="pipe-arrow" />
+                <!-- Line 1 Discharge Arrow: Pump 1 towards Sump Tank -->
+                <polygon points="346,326 358,330 346,334" class="pipe-arrow" />
+                
+                <!-- Line 2 Upward Arrow: Pump 2 Return Line rising to Upper Pipe -->
+                <polygon points="606,346 614,346 610,334" class="pipe-arrow" />
+                <!-- Line 2 Horizontal Arrow: Return Line across FT-01 directly into Process Tank -->
+                <polygon points="386,136 374,140 386,144" class="pipe-arrow" />
+                
+                <!-- Line 3 Downward Arrow: Flush Tank Outlet into Ball Valve -->
+                <polygon points="796,252 804,252 800,264" class="pipe-arrow" />
+                <!-- Line 3 Horizontal Arrow: After Pump 3 towards riser -->
+                <polygon points="680,306 670,310 680,314" class="pipe-arrow" />
+                <!-- Line 3 Horizontal Arrow: Flush supply corridor towards Branch Junction -->
+                <polygon points="436,241 424,245 436,249" class="pipe-arrow" />
+                <!-- Line 3 Branch Arrow: Flush supply joining Branch Junction before Pump 1 -->
+                <polygon points="241,257 249,257 245,268" class="pipe-arrow" />
+              </g>
+
+
+              <!-- ================= 3. TANKS ================= -->
+              <!-- Tank 1: 10L Main Process Tank -->
+              <g id="tank-process" class="tank-group" transform="translate(100, 80)">
+                <rect class="tank-body" x="0" y="0" width="150" height="150" rx="8" />
+                <!-- Liquid Fill Level -->
+                <rect class="tank-liquid" x="4" y="45" width="142" height="101" rx="4" />
+                <line x1="4" y1="45" x2="146" y2="45" class="tank-liquid-surface" />
+                <text class="tank-title" x="75" y="24" text-anchor="middle">10L PROCESS TANK</text>
+                <text class="tank-sub" x="75" y="70" text-anchor="middle">MAIN RECIRCULATION</text>
+                <text class="tank-desc" x="75" y="92" text-anchor="middle">Constant Process Volume</text>
+                <text class="tank-tag" x="75" y="130" text-anchor="middle">TANK 1</text>
+              </g>
+
+              <!-- Tank 2: Sump Tank with Float Switch -->
+              <g id="tank-sump" class="tank-group" transform="translate(345, 310)">
+                <rect class="tank-body" x="0" y="0" width="170" height="140" rx="8" />
+                <rect class="tank-liquid liquid-sump" id="sump-liquid-level" x="4" y="65" width="162" height="71" rx="4" />
+                <line id="sump-liquid-surface" x1="4" y1="65" x2="166" y2="65" class="tank-liquid-surface" />
+                <text class="tank-title" x="85" y="24" text-anchor="middle">SUMP TANK</text>
+                
+                <!-- Sump Float Switch Representation -->
+                <g id="comp-float-switch" class="interactive-comp float-switch-comp" transform="translate(20, 36)">
+                  <rect class="float-bracket" x="0" y="0" width="34" height="48" rx="3" />
+                  <circle id="float-bob" class="float-bob float-bob-normal" cx="17" cy="35" r="10" />
+                  <text class="float-title" x="42" y="18">FLOAT SWITCH</text>
+                  <text class="float-gpio" x="42" y="30">(GPIO 35)</text>
+                  <text id="float-status-text" class="float-status-text" x="42" y="45">NORMAL</text>
+                </g>
+                <text class="tank-tag" x="135" y="125" text-anchor="middle">TANK 2</text>
+              </g>
+
+              <!-- Tank 3: Flush-Water Supply Tank -->
+              <g id="tank-flush" class="tank-group" transform="translate(725, 80)">
+                <rect class="tank-body" x="0" y="0" width="150" height="150" rx="8" />
+                <rect class="tank-liquid liquid-flush" x="4" y="30" width="142" height="116" rx="4" />
+                <line x1="4" y1="30" x2="146" y2="30" class="tank-liquid-surface" />
+                <text class="tank-title" x="75" y="24" text-anchor="middle">FLUSH TANK</text>
+                <text class="tank-sub" x="75" y="70" text-anchor="middle">CASE 2 SUPPLY</text>
+                <text class="tank-tag" x="75" y="130" text-anchor="middle">TANK 3</text>
+              </g>
+
+
+              <!-- ================= 4. PUMPS (DIRECTLY CLICKABLE) ================= -->
+              <!-- Pump 1 (U2 BTS7960): Process Tank -> Sump -->
+              <g id="comp-pump1" class="interactive-comp pump-group" transform="translate(272, 248)" data-pump="1">
+                <circle id="pump1-circle" class="pump-circle" cx="32" cy="32" r="32" />
+                <g id="pump1-rotor" class="pump-rotor-spinner">
+                  <path class="rotor-blade" d="M 29 24 Q 36 16 32 8 Q 27 16 29 24 Z" />
+                  <path class="rotor-blade" d="M 40 29 Q 48 36 56 32 Q 48 27 40 29 Z" />
+                  <path class="rotor-blade" d="M 35 40 Q 28 48 32 56 Q 37 48 35 40 Z" />
+                  <path class="rotor-blade" d="M 24 35 Q 16 28 8 32 Q 16 37 24 35 Z" />
+                </g>
+                <circle class="pump-hub" cx="32" cy="32" r="14.5" />
+                <text id="pump1-duty-text" class="pump-duty-badge duty-stopped" x="32" y="32" text-anchor="middle" dominant-baseline="central">0%</text>
+                <text class="pump-name" x="32" y="-6" text-anchor="middle">P1</text>
+                <text class="comp-id-label" x="32" y="76" text-anchor="middle">PUMP 1 (U2)</text>
+                <text class="comp-sub-label" x="32" y="90" text-anchor="middle">Tank &rarr; Sump</text>
+                <circle class="click-hint-dot" cx="58" cy="8" r="6" />
+                <text class="click-hint-text" x="58" y="11" text-anchor="middle">&#x270E;</text>
+              </g>
+
+              <!-- Pump 2 (U3 BTS7960): Sump -> FT-01 -> Process Tank -->
+              <g id="comp-pump2" class="interactive-comp pump-group" transform="translate(578, 368)" data-pump="2">
+                <circle id="pump2-circle" class="pump-circle" cx="32" cy="32" r="32" />
+                <g id="pump2-rotor" class="pump-rotor-spinner">
+                  <path class="rotor-blade" d="M 29 24 Q 36 16 32 8 Q 27 16 29 24 Z" />
+                  <path class="rotor-blade" d="M 40 29 Q 48 36 56 32 Q 48 27 40 29 Z" />
+                  <path class="rotor-blade" d="M 35 40 Q 28 48 32 56 Q 37 48 35 40 Z" />
+                  <path class="rotor-blade" d="M 24 35 Q 16 28 8 32 Q 16 37 24 35 Z" />
+                </g>
+                <circle class="pump-hub" cx="32" cy="32" r="14.5" />
+                <text id="pump2-duty-text" class="pump-duty-badge duty-stopped" x="32" y="32" text-anchor="middle" dominant-baseline="central">0%</text>
+                <text class="pump-name" x="32" y="-6" text-anchor="middle">P2</text>
+                <text class="comp-id-label" x="32" y="76" text-anchor="middle">PUMP 2 (U3)</text>
+                <text class="comp-sub-label" x="32" y="90" text-anchor="middle">Sump &rarr; Main</text>
+                <circle class="click-hint-dot" cx="58" cy="8" r="6" />
+                <text class="click-hint-text" x="58" y="11" text-anchor="middle">&#x270E;</text>
+              </g>
+
+              <!-- Pump 3 (U4 BTS7960): Flush Tank -> Branch Junction -->
+              <g id="comp-pump3" class="interactive-comp pump-group" transform="translate(678, 278)" data-pump="3">
+                <circle id="pump3-circle" class="pump-circle" cx="32" cy="32" r="32" />
+                <g id="pump3-rotor" class="pump-rotor-spinner">
+                  <path class="rotor-blade" d="M 29 24 Q 36 16 32 8 Q 27 16 29 24 Z" />
+                  <path class="rotor-blade" d="M 40 29 Q 48 36 56 32 Q 48 27 40 29 Z" />
+                  <path class="rotor-blade" d="M 35 40 Q 28 48 32 56 Q 37 48 35 40 Z" />
+                  <path class="rotor-blade" d="M 24 35 Q 16 28 8 32 Q 16 37 24 35 Z" />
+                </g>
+                <circle class="pump-hub" cx="32" cy="32" r="14.5" />
+                <text id="pump3-duty-text" class="pump-duty-badge duty-stopped" x="32" y="32" text-anchor="middle" dominant-baseline="central">0%</text>
+                <text class="pump-name" x="32" y="-6" text-anchor="middle">P3</text>
+                <text class="comp-id-label" x="32" y="76" text-anchor="middle">PUMP 3 (U4)</text>
+                <text class="comp-sub-label" x="32" y="90" text-anchor="middle">Flush Supply</text>
+                <circle class="click-hint-dot" cx="58" cy="8" r="6" />
+                <text class="click-hint-text" x="58" y="11" text-anchor="middle">&#x270E;</text>
+              </g>
+
+
+              <!-- ================= 5. VALVES & SENSORS ================= -->
+              <!-- Solenoid Valve (GPIO 27) - Inline on Process Tank Outlet Line to Pump 1 -->
+              <g id="comp-solenoid" class="interactive-comp valve-group" transform="translate(162, 259)">
+                <polygon id="solenoid-symbol" class="valve-symbol valve-closed" points="0,0 26,26 0,26 26,0" transform="translate(8, 8)" />
+                <rect class="valve-actuator" x="17" y="2" width="8" height="6" rx="1" />
+                <text class="comp-id-label" x="21" y="46" text-anchor="middle">SOLENOID VALVE</text>
+                <text class="comp-sub-label" x="21" y="58" text-anchor="middle">GPIO 27</text>
+                <text id="solenoid-status-text" class="valve-state-text" x="21" y="72" text-anchor="middle">CLOSED</text>
+                <circle class="click-hint-dot" cx="38" cy="8" r="6" />
+                <text class="click-hint-text" x="38" y="11" text-anchor="middle">&#x270E;</text>
+              </g>
+
+              <!-- FT-01 Flow Sensor (GPIO 14) - Interactive -->
+              <g id="comp-flow-sensor" class="interactive-comp sensor-group" transform="translate(500, 115)">
+                <circle id="flow-sensor-circle" class="sensor-circle" cx="26" cy="26" r="23" />
+                <!-- Turbine blades -->
+                <path class="turbine-blade" d="M 26 8 L 26 44 M 8 26 L 44 26 M 13 13 L 39 39 M 13 39 L 39 13" />
+                <text class="sensor-tag" x="26" y="29" text-anchor="middle">FT-01</text>
+                <text class="comp-id-label" x="26" y="60" text-anchor="middle">FLOW SENSOR</text>
+                <text class="comp-sub-label" x="26" y="72" text-anchor="middle">GPIO 14 (Interrupt)</text>
+                <rect class="flow-readout-pill" x="-5" y="78" width="62" height="18" rx="3" />
+                <text id="schematic-flow-val" class="sensor-live-val" x="26" y="91" text-anchor="middle">0.00 L/min</text>
+              </g>
+
+              <!-- Manual Flush-Line Ball Valve -->
+              <g id="comp-ball-valve" class="interactive-comp valve-group" transform="translate(765, 290)">
+                <polygon class="manual-valve-symbol" points="0,0 24,24 0,24 24,0" transform="translate(8, 8)" />
+                <rect class="ball-valve-lever" x="16" y="0" width="20" height="5" rx="2" />
+                <text class="comp-id-label" x="20" y="44" text-anchor="middle">BALL VALVE</text>
+              </g>
+
+              <!-- Branch Junction (Flush supply joins Process line before Pump 1) -->
+              <g id="junction-tee" class="tee-group" transform="translate(240, 275)">
+                <circle cx="5" cy="5" r="7" class="tee-circle" />
+                <text class="tee-label" x="5" y="19" text-anchor="middle">BRANCH</text>
+                <text class="tee-label" x="5" y="28" text-anchor="middle">JUNCTION</text>
+              </g>
+
+              <!-- Physical Start Button for Automatic Sequence (GPIO 34 on PCB ON/OFF connector) -->
+              <g id="comp-flush-button" class="flush-btn-badge-group" transform="translate(680, 420)">
+                <rect class="flush-btn-box" x="0" y="0" width="185" height="44" rx="6" />
+                <circle id="flush-btn-led" class="flush-btn-led" cx="24" cy="22" r="11" />
+                <text class="flush-btn-title" x="44" y="19">START BUTTON (GPIO 34)</text>
+                <text id="flush-btn-state" class="flush-btn-val" x="44" y="35">READY: PRESS TO START</text>
+              </g>
+
+            </svg>
+
+            <!-- Click Popover for Component Control -->
+            <div id="comp-popover" class="comp-popover hidden">
+              <div class="popover-header">
+                <span id="popover-title">Component</span>
+                <button id="popover-close" class="btn-close">&times;</button>
+              </div>
+              <div id="popover-body" class="popover-body"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+
+      <!-- ================= RIGHT COLUMN: GRAPH & TABBED CONSOLE ================= -->
+      <section id="right-column" class="dash-column">
+
+        <!-- A. Clean Live Flow-Rate Graph -->
+        <div class="card graph-card">
+          <div class="card-header graph-header">
+            <span class="card-title">&#x1F4C8; FLOW RATE (FT-01)</span>
+            <span id="graph-state-badge" class="badge-tag badge-waiting">WAITING</span>
+          </div>
+          
+          <div class="graph-metrics-banner">
+            <div class="metric-block">
+              <span class="metric-label">FLOW:</span>
+              <span class="metric-val" id="metric-flow-val">0.00</span>
+              <span class="metric-unit">L/min</span>
+            </div>
+            <div class="metric-block">
+              <span class="metric-label">FREQ:</span>
+              <span class="metric-val" id="metric-freq-val">0</span>
+              <span class="metric-unit">Hz</span>
+            </div>
+            <div class="metric-block">
+              <span class="metric-label">PWM:</span>
+              <span class="metric-val" id="metric-pwm-val">--</span>
+              <span class="metric-unit">%</span>
+            </div>
+          </div>
+
+          <div class="card-body graph-canvas-wrapper">
+            <canvas id="flow-graph-canvas"></canvas>
+          </div>
+          <div class="graph-footer">
+            <span class="graph-legend-hint">Rated range: 0.3 - 6.0 L/min (F &approx; 98 &times; Q)</span>
+          </div>
+        </div>
+
+        <!-- B. Tabbed Console (Single Panel for Event Log & Serial Terminal) -->
+        <div class="card terminal-card">
+          <div class="card-header tab-header">
+            <div class="tabs-group">
+              <button id="tab-btn-events" class="tab-btn tab-active">EVENT LOG</button>
+              <button id="tab-btn-terminal" class="tab-btn">SERIAL TERMINAL</button>
+            </div>
+            <button id="btn-clear-term" class="btn btn-tiny btn-outline" title="Clear console">&#x1F5D1;</button>
+          </div>
+
+          <!-- Tab Content 1: Event Log -->
+          <div id="tab-content-events" class="card-body terminal-body tab-panel">
+            <div id="event-log-container" class="log-entries-list">
+              <div class="log-item log-info">
+                <span class="log-time">--:--:--</span>
+                <span class="log-msg">SCADA Dashboard loaded. Connect to ESP32 to monitor.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab Content 2: Raw Serial Terminal -->
+          <div id="tab-content-terminal" class="card-body terminal-body tab-panel hidden">
+            <pre id="raw-terminal-output" class="raw-terminal-box"></pre>
+            <div class="terminal-input-bar">
+              <input type="text" id="term-input" placeholder="Send command (e.g. p, N, d50, L)..." autocomplete="off" />
+              <button id="btn-term-send" class="btn btn-tiny btn-primary">SEND</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
