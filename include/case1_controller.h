@@ -52,7 +52,7 @@ bool case1StartNormalFlow();
 // Periodic system update routine taking both ON/OFF switch and float switch states
 void updateCase1WithInputs(bool isSystemSwitchOn, bool isFloatSwitchTriggered);
 
-// Return-to-normal 1-second transition delay queries
+// Return-to-normal 10-second transition delay queries
 bool isCase1TransitionDelayActive();
 unsigned long getCase1TransitionRemainingMs();
 

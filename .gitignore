@@ -6,5 +6,4 @@
 .cache
 __pycache__
 *.pyc
-ui/screenshots/chrome_user_data/
 

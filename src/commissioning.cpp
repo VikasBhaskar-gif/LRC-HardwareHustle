@@ -43,8 +43,8 @@ void printCommissioningMenu() {
     Serial.print("Select [0-8]: ");
 }
 
-static void printPump1SubMenu() {
-    Serial.println("\n--- Pump 1 Test (Driver U2) ---");
+static void printPumpSubMenu(int pumpNum, const char* driver) {
+    Serial.printf("\n--- Pump %d Test (Driver %s) ---\n", pumpNum, driver);
     Serial.printf("  Hardware: %s\n", isCase1HardwareOutputEnabled() ? "ENABLED" : "DISABLED");
     Serial.println("  0=Stop, 1=25%, 2=50%, 3=75%, 4=100%");
     Serial.println("  d<0-100> in 5% steps (e.g. d50)");
@@ -52,14 +52,8 @@ static void printPump1SubMenu() {
     Serial.print("Command: ");
 }
 
-static void printPump2SubMenu() {
-    Serial.println("\n--- Pump 2 Test (Driver U3) ---");
-    Serial.printf("  Hardware: %s\n", isCase1HardwareOutputEnabled() ? "ENABLED" : "DISABLED");
-    Serial.println("  0=Stop, 1=25%, 2=50%, 3=75%, 4=100%");
-    Serial.println("  d<0-100> in 5% steps (e.g. d50)");
-    Serial.println("  s=E-Stop, b=Back");
-    Serial.print("Command: ");
-}
+static void printPump1SubMenu() { printPumpSubMenu(1, "U2"); }
+static void printPump2SubMenu() { printPumpSubMenu(2, "U3"); }
 
 static void printSolenoidSubMenu() {
     Serial.println("\n--- Solenoid Test (GPIO 27) ---");
@@ -100,7 +94,7 @@ void exitCommissioningMode() {
 // INDIVIDUAL COMMISSIONING TESTS
 // -----------------------------------------------------------------------------
 
-void runPump1CommissioningTest(uint8_t duty) {
+static void runPumpTest(int pumpNum, uint8_t duty) {
     if (duty > 100) duty = 100;
 
     if (isCase1EmergencyStopActive()) {
@@ -113,63 +107,43 @@ void runPump1CommissioningTest(uint8_t duty) {
     }
 
     bool hwEnabled = isCase1HardwareOutputEnabled();
+    const char* dirStr = "FORWARD";
 
-    // Set software target
-    if (duty > 0) {
-        if (hwEnabled) {
+    if (pumpNum == 1) {
+        if (duty > 0 && hwEnabled) {
             setPump1Duty(duty);
             enablePump1();
         } else {
+            if (duty == 0) setPump1Duty(0);
             disablePump1();
         }
+        dirStr = (getPump1Direction() == PUMP_DIR_FORWARD) ? "FORWARD" : "REVERSE";
     } else {
-        setPump1Duty(0);
-        disablePump1();
+        if (duty > 0 && hwEnabled) {
+            setPump2Duty(duty);
+            enablePump2();
+        } else {
+            if (duty == 0) setPump2Duty(0);
+            disablePump2();
+        }
+        dirStr = (getPump2Direction() == PUMP_DIR_FORWARD) ? "FORWARD" : "REVERSE";
     }
 
-    Serial.println("\n--- Pump 1 Test ---");
+    Serial.printf("\n--- Pump %d Test ---\n", pumpNum);
     Serial.printf("  Requested Duty:  %d%%\n", duty);
-    Serial.printf("  Direction:       %s\n", (getPump1Direction() == PUMP_DIR_FORWARD) ? "FORWARD" : "REVERSE");
+    Serial.printf("  Direction:       %s\n", dirStr);
     Serial.printf("  Hardware output: %s\n", hwEnabled ? "ENABLED" : "DISABLED");
     if (!hwEnabled) {
         Serial.println("  Dry-run: output suppressed.");
     }
 }
 
+void runPump1CommissioningTest(uint8_t duty) {
+    runPumpTest(1, duty);
+}
+
 void runPump2CommissioningTest(uint8_t duty) {
-    if (duty > 100) duty = 100;
-
-    if (isCase1EmergencyStopActive()) {
-        Serial.println("\n[COMMISSIONING] Blocked: Emergency Stop active.");
-        return;
-    }
-    if (!isSystemOn()) {
-        Serial.println("\n[COMMISSIONING] Blocked: System Switch OFF.");
-        return;
-    }
-
-    bool hwEnabled = isCase1HardwareOutputEnabled();
-
-    // Set software target
-    if (duty > 0) {
-        if (hwEnabled) {
-            setPump2Duty(duty);
-            enablePump2();
-        } else {
-            disablePump2();
-        }
-    } else {
-        setPump2Duty(0);
-        disablePump2();
-    }
-
-    Serial.println("\n--- Pump 2 Test ---");
-    Serial.printf("  Requested Duty:  %d%%\n", duty);
-    Serial.printf("  Direction:       %s\n", (getPump2Direction() == PUMP_DIR_FORWARD) ? "FORWARD" : "REVERSE");
-    Serial.printf("  Hardware output: %s\n", hwEnabled ? "ENABLED" : "DISABLED");
-    if (!hwEnabled) {
-        Serial.println("  Dry-run: output suppressed.");
-    }
+    runPumpTest(2, duty);
 }
 
 void runSolenoidCommissioningTest(bool openValve) {
@@ -346,6 +320,31 @@ void printCommissioningDiagnosticScreen() {
 // COMMISSIONING SERIAL COMMAND DISPATCHER
 // -----------------------------------------------------------------------------
 
+static void handlePumpSubMenuCommand(int pumpNum, char cmd) {
+    switch (cmd) {
+        case '0': runPumpTest(pumpNum, 0); break;
+        case '1': runPumpTest(pumpNum, 25); break;
+        case '2': runPumpTest(pumpNum, 50); break;
+        case '3': runPumpTest(pumpNum, 75); break;
+        case '4': runPumpTest(pumpNum, 100); break;
+        case 's':
+        case 'S': runPumpTest(pumpNum, 0); break;
+        case 'b':
+        case 'B':
+        case 'x':
+        case 'X':
+            s_currentSubMenu = COMM_SUB_MAIN;
+            printCommissioningMenu();
+            break;
+        case '\r':
+        case '\n':
+            break;
+        default:
+            Serial.printf("[PUMP%d TEST] Unknown option: '%c'. Send 0-4, 'd<0-100>', 's', or 'b'.\n", pumpNum, cmd);
+            break;
+    }
+}
+
 bool handleCommissioningCommand(char cmd) {
     if (!s_commissioningModeActive) {
         return false;
@@ -364,77 +363,11 @@ bool handleCommissioningCommand(char cmd) {
     // Sub-menu specific handlers
     switch (s_currentSubMenu) {
         case COMM_SUB_PUMP1:
-            switch (cmd) {
-                case '0':
-                    runPump1CommissioningTest(0);
-                    break;
-                case '1':
-                    runPump1CommissioningTest(25);
-                    break;
-                case '2':
-                    runPump1CommissioningTest(50);
-                    break;
-                case '3':
-                    runPump1CommissioningTest(75);
-                    break;
-                case '4':
-                    runPump1CommissioningTest(100);
-                    break;
-                case 's':
-                case 'S':
-                    runPump1CommissioningTest(0);
-                    break;
-                case 'b':
-                case 'B':
-                case 'x':
-                case 'X':
-                    s_currentSubMenu = COMM_SUB_MAIN;
-                    printCommissioningMenu();
-                    break;
-                case '\r':
-                case '\n':
-                    break;
-                default:
-                    Serial.printf("[PUMP1 TEST] Unknown option: '%c'. Send 0-4, 'd<0-100>', 's', or 'b'.\n", cmd);
-                    break;
-            }
+            handlePumpSubMenuCommand(1, cmd);
             return true;
 
         case COMM_SUB_PUMP2:
-            switch (cmd) {
-                case '0':
-                    runPump2CommissioningTest(0);
-                    break;
-                case '1':
-                    runPump2CommissioningTest(25);
-                    break;
-                case '2':
-                    runPump2CommissioningTest(50);
-                    break;
-                case '3':
-                    runPump2CommissioningTest(75);
-                    break;
-                case '4':
-                    runPump2CommissioningTest(100);
-                    break;
-                case 's':
-                case 'S':
-                    runPump2CommissioningTest(0);
-                    break;
-                case 'b':
-                case 'B':
-                case 'x':
-                case 'X':
-                    s_currentSubMenu = COMM_SUB_MAIN;
-                    printCommissioningMenu();
-                    break;
-                case '\r':
-                case '\n':
-                    break;
-                default:
-                    Serial.printf("[PUMP2 TEST] Unknown option: '%c'. Send 0-4, 'd<0-100>', 's', or 'b'.\n", cmd);
-                    break;
-            }
+            handlePumpSubMenuCommand(2, cmd);
             return true;
 
         case COMM_SUB_SOLENOID:
@@ -561,31 +494,19 @@ bool handleCommissioningCommandLine(const char* line) {
     }
 
     switch (s_currentSubMenu) {
-        case COMM_SUB_PUMP1: {
-            DutyCommand cmd;
-            DutyParseResult res = parseDuty5PercentCommand(line, 1, cmd);
-            if (res == DUTY_PARSE_OK) {
-                runPump1CommissioningTest(cmd.dutyPercent);
-                return true;
-            } else if (res != DUTY_PARSE_NOT_A_DUTY_CMD) {
-                printDutyParseError(line, cmd);
-                return true;
-            }
-            Serial.printf("[PUMP1 TEST] Unknown command: '%s'. Send 0-4, d<0-100>, 's', or 'b'.\n", line);
-            return true;
-        }
-
+        case COMM_SUB_PUMP1:
         case COMM_SUB_PUMP2: {
+            int pump = (s_currentSubMenu == COMM_SUB_PUMP1) ? 1 : 2;
             DutyCommand cmd;
-            DutyParseResult res = parseDuty5PercentCommand(line, 2, cmd);
+            DutyParseResult res = parseDuty5PercentCommand(line, pump, cmd);
             if (res == DUTY_PARSE_OK) {
-                runPump2CommissioningTest(cmd.dutyPercent);
+                runPumpTest(pump, cmd.dutyPercent);
                 return true;
             } else if (res != DUTY_PARSE_NOT_A_DUTY_CMD) {
                 printDutyParseError(line, cmd);
                 return true;
             }
-            Serial.printf("[PUMP2 TEST] Unknown command: '%s'. Send 0-4, d<0-100>, 's', or 'b'.\n", line);
+            Serial.printf("[PUMP%d TEST] Unknown command: '%s'. Send 0-4, d<0-100>, 's', or 'b'.\n", pump, line);
             return true;
         }
 

@@ -372,7 +372,7 @@ void updateCase1WithInputs(bool isSystemSwitchOn, bool isFloatSwitchTriggered) {
                 Serial.println("CASE 1 -> SUMP HIGH");
                 Serial.printf("P1: 0% | P2: %d%% | Solenoid: OPEN\n", s_pump2TargetDuty);
             } else {
-                // SUMP HIGH -> RETURN TO NORMAL (Fluid cleared: resume Pump 1 at 50%, start 1s transition timer)
+                // SUMP HIGH -> RETURN TO NORMAL (Fluid cleared: resume Pump 1 at 50%, start 10s transition timer)
                 s_currentState = CASE1_STATE_RETURN_TO_NORMAL;
                 s_pump1TargetDuty = s_pump1NormalDuty;
                 s_pump2TargetDuty = s_pump2NormalDuty;
@@ -432,23 +432,28 @@ bool case1StartNormalFlow() {
     return true;
 }
 
-void case1TriggerSimulatedNormal() {
+static bool canRunSimulation() {
     if (s_emergencyStopActive) {
         Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while Emergency Stop is active.");
-        return;
+        return false;
     }
     if (s_currentState == CASE1_STATE_SYSTEM_OFF) {
         Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while System Switch is OFF.");
-        return;
+        return false;
     }
     if (s_currentState == CASE2_STATE_FLUSHING) {
         Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while Case 2 Flush is running.");
-        return;
+        return false;
     }
     if (s_currentState == CASE2_STATE_SHUTDOWN) {
         Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while in Case 2 Shutdown.");
-        return;
+        return false;
     }
+    return true;
+}
+
+void case1TriggerSimulatedNormal() {
+    if (!canRunSimulation()) return;
 
     s_inputSource = CASE1_SRC_SIMULATION;
     s_currentState = CASE1_STATE_NORMAL;
@@ -463,22 +468,7 @@ void case1TriggerSimulatedNormal() {
 }
 
 void case1TriggerSimulatedSumpHigh() {
-    if (s_emergencyStopActive) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while Emergency Stop is active.");
-        return;
-    }
-    if (s_currentState == CASE1_STATE_SYSTEM_OFF) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while System Switch is OFF.");
-        return;
-    }
-    if (s_currentState == CASE2_STATE_FLUSHING) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while Case 2 Flush is running.");
-        return;
-    }
-    if (s_currentState == CASE2_STATE_SHUTDOWN) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while in Case 2 Shutdown.");
-        return;
-    }
+    if (!canRunSimulation()) return;
 
     s_inputSource = CASE1_SRC_SIMULATION;
     s_transitionTimerActive = false;
@@ -494,22 +484,7 @@ void case1TriggerSimulatedSumpHigh() {
 }
 
 void case1TriggerSimulatedReturnToNormal() {
-    if (s_emergencyStopActive) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while Emergency Stop is active.");
-        return;
-    }
-    if (s_currentState == CASE1_STATE_SYSTEM_OFF) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while System Switch is OFF.");
-        return;
-    }
-    if (s_currentState == CASE2_STATE_FLUSHING) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while Case 2 Flush is running.");
-        return;
-    }
-    if (s_currentState == CASE2_STATE_SHUTDOWN) {
-        Serial.println("[SAFETY] Blocked: Cannot simulate Case 1 while in Case 2 Shutdown.");
-        return;
-    }
+    if (!canRunSimulation()) return;
 
     s_inputSource = CASE1_SRC_SIMULATION;
     s_currentState = CASE1_STATE_RETURN_TO_NORMAL;

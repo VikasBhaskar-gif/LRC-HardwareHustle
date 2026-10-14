@@ -7,7 +7,6 @@
 #include "flow_sensor.h"
 #include "system_switch.h"
 #include "start_button.h"
-#include "flush_button.h"
 #include "solenoid_valve.h"
 #include "commissioning.h"
 #include "duty_parser.h"
@@ -15,6 +14,19 @@
 // Continuous CSV flow logging state
 static bool s_csvLoggingActive = false;
 static unsigned long s_lastCsvLogTime = 0;
+
+static bool checkPumpSafety(int pump) {
+    if (isCase1EmergencyStopActive()) {
+        Serial.printf("[SAFETY] Blocked: Emergency Stop is active! Press '%s' or 'n' to clear.\n",
+                      (pump == 1) ? "e" : "q");
+        return false;
+    }
+    if (!isSystemOn()) {
+        Serial.println("[SAFETY] Blocked: Cannot run pump while System Switch is OFF.");
+        return false;
+    }
+    return true;
+}
 
 static void printHelpMenu() {
     Serial.println("\n----------------- COMMAND MENU -----------------");
@@ -167,14 +179,7 @@ static void handleSerialCommand(char cmd) {
         case '2':
         case '3':
         case '4': {
-            if (isCase1EmergencyStopActive()) {
-                Serial.println("[SAFETY] Blocked: Emergency Stop is active! Press 'e' or 'n' to clear.");
-                break;
-            }
-            if (!isSystemOn()) {
-                Serial.println("[SAFETY] Blocked: Cannot run pump while System Switch is OFF.");
-                break;
-            }
+            if (!checkPumpSafety(1)) break;
             uint8_t duty = (cmd == '1') ? 25 : (cmd == '2') ? 50 : (cmd == '3') ? 75 : 100;
             setPump1Duty(duty);
             break;
@@ -200,14 +205,7 @@ static void handleSerialCommand(char cmd) {
         case '6':
         case '7':
         case '8': {
-            if (isCase1EmergencyStopActive()) {
-                Serial.println("[SAFETY] Blocked: Emergency Stop is active! Press 'q' or 'n' to clear.");
-                break;
-            }
-            if (!isSystemOn()) {
-                Serial.println("[SAFETY] Blocked: Cannot run pump while System Switch is OFF.");
-                break;
-            }
+            if (!checkPumpSafety(2)) break;
             uint8_t duty = (cmd == '5') ? 25 : (cmd == '6') ? 50 : (cmd == '7') ? 75 : 100;
             setPump2Duty(duty);
             break;
@@ -311,26 +309,10 @@ static void handleMainCommandLine(const char* line) {
     DutyParseResult res = parseDuty5PercentCommand(line, 2, cmd);
 
     if (res == DUTY_PARSE_OK) {
+        if (!checkPumpSafety(cmd.targetPump)) return;
         if (cmd.targetPump == 1) {
-            if (isCase1EmergencyStopActive()) {
-                Serial.println("[SAFETY] Blocked: Emergency Stop is active! Press 'e' or 'n' to clear.");
-                return;
-            }
-            if (!isSystemOn()) {
-                Serial.println("[SAFETY] Blocked: Cannot run pump while System Switch is OFF.");
-                return;
-            }
             setPump1Duty(cmd.dutyPercent);
         } else {
-            // Target Pump 2 (default)
-            if (isCase1EmergencyStopActive()) {
-                Serial.println("[SAFETY] Blocked: Emergency Stop is active! Press 'q' or 'n' to clear.");
-                return;
-            }
-            if (!isSystemOn()) {
-                Serial.println("[SAFETY] Blocked: Cannot run pump while System Switch is OFF.");
-                return;
-            }
             setPump2Duty(cmd.dutyPercent);
         }
     } else if (res != DUTY_PARSE_NOT_A_DUTY_CMD) {

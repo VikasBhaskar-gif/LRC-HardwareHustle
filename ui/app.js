@@ -74,10 +74,7 @@
     btnExportCsv: document.getElementById('btn-export-csv'),
     btnClearTable: document.getElementById('btn-clear-table'),
 
-    // Center Action Bar & Flush Monitor
-    case2FlushMonitor: document.getElementById('case2-flush-monitor'),
-    flushSeconds: document.getElementById('flush-seconds'),
-    flushProgressFill: document.getElementById('flush-progress-fill'),
+    // Center Action Bar Controls
     btnSimNorm: document.getElementById('btn-sim-norm'),
     btnSimHigh: document.getElementById('btn-sim-high'),
     btnSimRet: document.getElementById('btn-sim-ret'),
@@ -839,8 +836,6 @@
     state.case2FlushStartTime = Date.now();
     state.case2FlushDuration = durationSec;
 
-    if (el.case2FlushMonitor) el.case2FlushMonitor.classList.add('hidden');
-
     if (state.countdownTimerId) clearInterval(state.countdownTimerId);
 
     state.countdownTimerId = setInterval(() => {
@@ -864,8 +859,6 @@
     }
     state.case2Flushing = false;
     state.case2Shutdown = true;
-
-    if (el.case2FlushMonitor) el.case2FlushMonitor.classList.add('hidden');
 
     renderSchematic();
     updateMainStatusBanner();

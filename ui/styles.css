@@ -592,57 +592,7 @@ html, body {
   background: var(--color-red);
 }
 
-/* Integrated Flush Countdown Pill (Inside Schematic Header, Top-Right) */
-.flush-monitor-pill {
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 6px;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  border-radius: 4px;
-  font-size: 9.5px;
-  color: var(--color-blue);
-  font-weight: 700;
-  white-space: nowrap;
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
 
-.flush-icon {
-  font-size: 10px;
-  line-height: 1;
-}
-
-.flush-text {
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-}
-
-.flush-time {
-  font-family: var(--font-mono);
-  font-weight: 800;
-  color: #0369a1;
-  font-size: 10px;
-}
-
-.mini-progress-track {
-  width: 36px;
-  height: 4px;
-  background: #e0f2fe;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.mini-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #0284c7, #38bdf8);
-  width: 0%;
-  border-radius: 2px;
-  transition: width 0.1s linear;
-}
 
 .quick-actions-group {
   display: flex;
@@ -1177,39 +1127,18 @@ html, body {
   font-weight: 600;
 }
 
-/* System Switch & Flush Button Cards inside SVG */
-.switch-badge-box, .flush-btn-box {
+/* Start Button Card inside SVG */
+.flush-btn-box {
   fill: #ffffff;
   stroke: var(--border-strong);
   stroke-width: 1.5;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.04));
 }
 
-.switch-led {
-  stroke-width: 2;
-}
-
-.switch-led-on {
-  fill: var(--color-green);
-  stroke: var(--color-green-border);
-}
-
-.switch-led-off {
-  fill: var(--color-red);
-  stroke: var(--color-red-border);
-}
-
-.switch-badge-title, .flush-btn-title {
+.flush-btn-title {
   fill: #0f172a;
   font-size: 9px;
   font-weight: 700;
-}
-
-.switch-badge-val {
-  fill: var(--color-green);
-  font-size: 10px;
-  font-weight: 700;
-  font-family: var(--font-mono);
 }
 
 .flush-btn-led {
